@@ -46,6 +46,9 @@ installinstallmacos_checksum="ae7fa803f1c05fd43a8c7c3167aed585a85ffe18c803ef484a
 
 # Directory in which to place the macOS installer. Overridden with --path
 installer_directory="/Applications"
+if [ $8 ]; then
+	installer_directory=$8
+fi
 
 # Default working directory (may be overridden by the --workdir parameter)
 workdir="/Library/Management/erase-install"
@@ -68,8 +71,8 @@ depnotify_download_url="https://files.nomad.menu/DEPNotify.pkg"
 ###################
 
 # Grab currently logged in user to set the language for Dialogue messages
-current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
-current_uid=$(/usr/bin/id -u "$current_user")
+    current_user=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}')
+ current_uid=$(/usr/bin/id -u "$current_user")
 # Get proper home directory. Output of scutil might not reflect the canonical RecordName or the HomeDirectory at all, which might prevent us from detecting the language
 current_user_homedir=$(/usr/libexec/PlistBuddy -c 'Print :dsAttrTypeStandard\:NFSHomeDirectory:0' /dev/stdin <<< "$(/usr/bin/dscl -plist /Search -read "/Users/${current_user}" NFSHomeDirectory)")
 language=$(/usr/libexec/PlistBuddy -c 'print AppleLanguages:0' "/${current_user_homedir}/Library/Preferences/.GlobalPreferences.plist")
@@ -1040,7 +1043,7 @@ get_user_details() {
 }
 
 kill_process() {
-    process="$1"
+      process="$1"
     echo
     if process_pid=$(/usr/bin/pgrep -a "$process" 2>/dev/null) ; then 
         echo "   [$script_name] attempting to terminate the '$process' process - Termination message indicates success"
@@ -1540,15 +1543,35 @@ post_prep_work() {
 ## MAIN BODY ##
 ###############
 
+
 # ensure the finish function is executed when exit is signaled
 trap "finish" EXIT
 
 # ensure some cleanup is done after startosinstall is run (thanks @frogor!)
 trap "post_prep_work" SIGUSR1  # 30 is the numerical representation of SIGUSR1 (thanks @n8felton)
 
+# Checking Jamf parameters before continuing and double checking the erase setting.
+erase=$4
+    echo "     [$script_name]--[param-check] Erase set to: $4"
+reinstall=$5
+    echo "     [$script_name]--[param-check] Reinstall set to: $5"
+confirm=$6
+    echo "     [$script_name]--[param-check] Confirm set to: $6"
+window_type=$7
+    echo "     [$script_name]--[param-check] Window_type set to: $7"
+
 # Safety mechanism to prevent unwanted wipe while testing
-erase="no"
-reinstall="no"
+if [ $erase ];then
+    erase="no"
+fi
+
+if [ $reinstall ];then
+    reinstall="yes"
+fi
+
+if [ $9 ]; then
+	prechosen_version="$9"
+fi
 
 # default minimum drive space in GB
 # Note that the amount of space required varies between macOS installer and system versions.
@@ -1640,7 +1663,7 @@ while test $# -gt 0 ; do
             min_drive_space="$1"
             ;;
         --seed|--seedprogram)
-            shift
+                    shift
             seedprogram="$1"
             ;;
         --catalogurl)
@@ -1687,6 +1710,10 @@ while test $# -gt 0 ; do
             shift
             postinstall_command+=("$1")
             ;;
+        --window_type)
+    		shift
+    		window_type="$1"
+            ;;
         --power-wait-limit*)
             power_wait_timer=$(echo "$1" | sed -e 's|^[^=]*=||g')
             ;;
@@ -1731,6 +1758,9 @@ while test $# -gt 0 ; do
             ;;
         --workdir*)
             workdir=$(echo "$1" | sed -e 's|^[^=]*=||g')
+            ;;
+        --window_type*)
+            window_type=$(echo $1 | sed -e 's|^[^=]*=||g')
             ;;
         --preinstall-command*)
             command=$(echo "$1" | sed -e 's|^[^=]*=||g')
@@ -1959,8 +1989,8 @@ if [[ -d "$working_macos_app" ]]; then
     echo "   [$script_name] Installer is at: $working_macos_app"
 fi
 
-# Move to $installer_directory if move_to_applications_folder flag is included
-# Not allowed for fetch_full_installer option
+    # Move to $installer_directory if move_to_applications_folder flag is included
+    # Not allowed for fetch_full_installer option
 if [[ $move == "yes" && ! $ffi ]]; then
     echo "   [$script_name] Invoking --move option"
     if [[ $use_depnotify == "yes" ]]; then
